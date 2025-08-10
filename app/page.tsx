@@ -3,36 +3,44 @@
 import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [authenticated, setAuthenticated] = useState(null);
   const [artists, setArtists] = useState([]);
   const [topTracks, setTopTracks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch artists + top tracks when component mounts
+  // Check authentication
   useEffect(() => {
-    async function fetchData() {
+    async function checkAuth() {
       try {
-        const [artistsRes, tracksRes] = await Promise.all([
-          fetch("/api/spotify/followed-artists").then(res => res.json()),
-          fetch("/api/spotify/top-tracks").then(res => res.json())
-        ]);
-
-        setArtists(artistsRes.artists?.items || []);
-        setTopTracks(tracksRes.items || []);
-      } catch (err) {
-        console.error("Error loading data", err);
+        const res = await fetch("/api/spotify/me");
+        if (res.status === 401) {
+          setAuthenticated(false);
+        } else {
+          setAuthenticated(true);
+          await fetchData();
+        }
+      } catch {
+        setAuthenticated(false);
       } finally {
         setLoading(false);
       }
     }
-    fetchData();
+    checkAuth();
   }, []);
 
-  // Pause playback
+  async function fetchData() {
+    const [artistsRes, tracksRes] = await Promise.all([
+      fetch("/api/spotify/followed-artists").then(res => res.json()),
+      fetch("/api/spotify/top-tracks").then(res => res.json())
+    ]);
+    setArtists(artistsRes.artists?.items || []);
+    setTopTracks(tracksRes.items || []);
+  }
+
   const pauseSong = async () => {
     await fetch("/api/spotify/pause", { method: "POST" });
   };
 
-  // Play a song
   const playSong = async (uri) => {
     await fetch("/api/spotify/play", {
       method: "POST",
@@ -43,6 +51,22 @@ export default function Home() {
 
   if (loading) return <p className="p-6">Loading...</p>;
 
+  // Not logged in
+  if (!authenticated) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-4">Connect to Spotify</h1>
+        <a
+          href="/api/spotify/login"
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+        >
+          Log in with Spotify
+        </a>
+      </div>
+    );
+  }
+
+  // Logged in dashboard
   return (
     <div className="p-6 space-y-10">
       <h1 className="text-2xl font-bold">Your Spotify Dashboard</h1>
